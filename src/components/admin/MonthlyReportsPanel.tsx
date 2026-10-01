@@ -50,6 +50,11 @@ export function MonthlyReportsPanel() {
   const [salaries, setSalaries] = useState<SalaryRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Dedicated Class-wise Dropdown PDF State
+  const [selectedExportClass, setSelectedExportClass] = useState<string>(CLASS_OPTIONS[3]); // Class 1
+  const [exportScope, setExportScope] = useState<"month" | "year">("month");
+  const [exportingClassPDF, setExportingClassPDF] = useState(false);
+
   const fetchMonthData = useCallback(async () => {
     setLoading(true);
 
@@ -124,6 +129,38 @@ export function MonthlyReportsPanel() {
 
   const monthName = MONTH_NAMES[selectedMonth];
 
+  const handleDownloadClassPDF = async () => {
+    setExportingClassPDF(true);
+    let classFees: FeeRecord[] = [];
+
+    if (exportScope === "year") {
+      try {
+        const { data, error } = await supabase
+          .from("fee_collections")
+          .select("*")
+          .eq("class", selectedExportClass)
+          .order("created_at", { ascending: false });
+        if (!error && data && data.length > 0) {
+          classFees = data as FeeRecord[];
+        } else {
+          classFees = fees.filter((f) => f.class === selectedExportClass);
+        }
+      } catch (e) {
+        classFees = fees.filter((f) => f.class === selectedExportClass);
+      }
+    } else {
+      classFees = fees.filter((f) => f.class === selectedExportClass);
+    }
+
+    downloadClassFeeReportPDF({
+      className: selectedExportClass,
+      monthName: exportScope === "year" ? "Academic Year 2026-2027" : monthName,
+      year: selectedYear,
+      fees: classFees,
+    });
+    setExportingClassPDF(false);
+  };
+
   return (
     <div className="space-y-8">
       {/* Top Banner & Control Bar */}
@@ -176,6 +213,75 @@ export function MonthlyReportsPanel() {
             >
               <RefreshCw className={`size-4 ${loading ? "animate-spin text-emerald-700" : ""}`} />
             </button>
+          </div>
+        </div>
+
+        {/* Dedicated Class-Wise PDF Dropdown Export Section */}
+        <div className="mb-6 rounded-2xl border-2 border-emerald-600/30 bg-emerald-50/50 p-5 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3 border-b border-emerald-200 pb-2.5">
+            <div className="flex items-center gap-2">
+              <div className="rounded-lg bg-[#064e3b] p-1.5 text-white">
+                <FileDown className="size-4" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-[#064e3b]">
+                  Class-Wise Fee Register Statement (PDF Export)
+                </h4>
+                <p className="text-[11px] text-slate-600">
+                  Select any class from the dropdown to download its official student fee collection statement with individual receipts & dues.
+                </p>
+              </div>
+            </div>
+            <span className="text-[11px] font-bold text-emerald-800 bg-white px-2.5 py-1 rounded-lg border border-emerald-200">
+              Institutional Stamp & Audit Ready
+            </span>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-3 items-end">
+            <div>
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                Select Class / Stream *
+              </label>
+              <select
+                value={selectedExportClass}
+                onChange={(e) => setSelectedExportClass(e.target.value)}
+                className="w-full rounded-xl border border-emerald-300 bg-white px-3 py-2.5 text-xs font-bold text-slate-900 focus:border-[#064e3b] focus:outline-none"
+              >
+                {CLASS_OPTIONS.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                Statement Time Range
+              </label>
+              <select
+                value={exportScope}
+                onChange={(e) => setExportScope(e.target.value as "month" | "year")}
+                className="w-full rounded-xl border border-emerald-300 bg-white px-3 py-2.5 text-xs font-bold text-slate-900 focus:border-[#064e3b] focus:outline-none"
+              >
+                <option value="month">Selected Month ({monthName} {selectedYear})</option>
+                <option value="year">Full Academic Year 2026-2027 (All Receipts)</option>
+              </select>
+            </div>
+
+            <div>
+              <button
+                type="button"
+                disabled={exportingClassPDF}
+                onClick={handleDownloadClassPDF}
+                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[#064e3b] px-4 py-2.5 text-xs font-bold text-white shadow-md hover:bg-[#085a44] transition-all disabled:opacity-50"
+              >
+                <FileDown className="size-4" />
+                <span>
+                  {exportingClassPDF ? "Generating PDF…" : `Download ${selectedExportClass} PDF`}
+                </span>
+              </button>
+            </div>
           </div>
         </div>
 

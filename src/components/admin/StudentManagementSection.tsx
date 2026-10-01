@@ -29,7 +29,11 @@ export function StudentManagementSection({
     email: "",
     parent_name: "",
     academic_year: "2026-2027",
+    term1_fee: 12000,
+    term2_fee: 10000,
+    term3_fee: 8000,
   });
+  const [justRegisteredStudent, setJustRegisteredStudent] = useState<StudentRecord | null>(null);
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
@@ -175,8 +179,12 @@ export function StudentManagementSection({
           f.student_name.toLowerCase().trim() === student.student_name.toLowerCase().trim()
       );
 
+      const t1Alloc = student.term1_fee !== undefined ? student.term1_fee : fs.term1_fee;
+      const t2Alloc = student.term2_fee !== undefined ? student.term2_fee : fs.term2_fee;
+      const t3Alloc = student.term3_fee !== undefined ? student.term3_fee : fs.term3_fee;
+      const totalFee = student.total_fee !== undefined ? student.total_fee : (t1Alloc + t2Alloc + t3Alloc);
+
       const totalPaid = studentPayments.reduce((sum, p) => sum + (p.fee_amount || 0), 0);
-      const totalFee = fs.total_fee || 30000;
       const remainingDue = Math.max(0, totalFee - totalPaid);
 
       // Term Breakdown
@@ -193,21 +201,21 @@ export function StudentManagementSection({
       const termBreakdown = [
         {
           term: "Term 1",
-          allocated: fs.term1_fee,
+          allocated: t1Alloc,
           paid: t1Paid,
-          due: Math.max(0, fs.term1_fee - t1Paid),
+          due: Math.max(0, t1Alloc - t1Paid),
         },
         {
           term: "Term 2",
-          allocated: fs.term2_fee,
+          allocated: t2Alloc,
           paid: t2Paid,
-          due: Math.max(0, fs.term2_fee - t2Paid),
+          due: Math.max(0, t2Alloc - t2Paid),
         },
         {
           term: "Term 3",
-          allocated: fs.term3_fee,
+          allocated: t3Alloc,
           paid: t3Paid,
-          due: Math.max(0, fs.term3_fee - t3Paid),
+          due: Math.max(0, t3Alloc - t3Paid),
         },
       ];
 
@@ -245,6 +253,11 @@ export function StudentManagementSection({
       return;
     }
 
+    const t1 = Number(form.term1_fee) || 0;
+    const t2 = Number(form.term2_fee) || 0;
+    const t3 = Number(form.term3_fee) || 0;
+    const total = t1 + t2 + t3;
+
     const newStudent: StudentRecord = {
       id: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `std_${Date.now()}`,
       hall_ticket_no: hallTicket,
@@ -257,6 +270,10 @@ export function StudentManagementSection({
       parent_name: form.parent_name.trim(),
       admission_date: new Date().toISOString().split("T")[0],
       academic_year: form.academic_year,
+      term1_fee: t1,
+      term2_fee: t2,
+      term3_fee: t3,
+      total_fee: total,
       created_at: new Date().toISOString(),
     };
 
@@ -412,7 +429,23 @@ export function StudentManagementSection({
               </label>
               <select
                 value={form.class}
-                onChange={(e) => setForm({ ...form, class: e.target.value })}
+                onChange={(e) => {
+                  const newClass = e.target.value;
+                  const fs =
+                    feeStructures.find((s) => s.class === newClass && s.group_name === form.group_name) ||
+                    feeStructures.find((s) => s.class === newClass) || {
+                      term1_fee: 12000,
+                      term2_fee: 10000,
+                      term3_fee: 8000,
+                    };
+                  setForm((prev) => ({
+                    ...prev,
+                    class: newClass,
+                    term1_fee: fs.term1_fee,
+                    term2_fee: fs.term2_fee,
+                    term3_fee: fs.term3_fee,
+                  }));
+                }}
                 className="w-full rounded-xl border border-[#d8d2c4] bg-white px-3 py-2 text-xs font-semibold text-slate-800 focus:border-[#064e3b] focus:outline-none"
               >
                 {CLASS_OPTIONS.map((c) => (
@@ -473,6 +506,67 @@ export function StudentManagementSection({
             </div>
           </div>
 
+          {/* Student Term Fee Customization Schedule */}
+          <div className="mt-4 rounded-xl border border-emerald-200 bg-white p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-3 border-b border-slate-100 pb-2">
+              <div>
+                <h5 className="text-xs font-bold uppercase tracking-wider text-[#064e3b]">
+                  Student Term Fee Allocation
+                </h5>
+                <p className="text-[11px] text-slate-500">
+                  Auto-populated for {form.class}. You can adjust term amounts here if this student has custom term agreements.
+                </p>
+              </div>
+              <div className="rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-bold text-[#064e3b] border border-emerald-200">
+                Total Annual Fee: {formatINR((Number(form.term1_fee) || 0) + (Number(form.term2_fee) || 0) + (Number(form.term3_fee) || 0))}
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Term 1 Fee (₹) *
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={form.term1_fee}
+                  onChange={(e) => setForm({ ...form, term1_fee: Number(e.target.value) || 0 })}
+                  className="w-full rounded-xl border border-[#d8d2c4] bg-[#faf8f5] px-3 py-2 text-xs font-bold text-slate-900 focus:border-[#064e3b] focus:bg-white focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Term 2 Fee (₹) *
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={form.term2_fee}
+                  onChange={(e) => setForm({ ...form, term2_fee: Number(e.target.value) || 0 })}
+                  className="w-full rounded-xl border border-[#d8d2c4] bg-[#faf8f5] px-3 py-2 text-xs font-bold text-slate-900 focus:border-[#064e3b] focus:bg-white focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Term 3 Fee (₹) *
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={form.term3_fee}
+                  onChange={(e) => setForm({ ...form, term3_fee: Number(e.target.value) || 0 })}
+                  className="w-full rounded-xl border border-[#d8d2c4] bg-[#faf8f5] px-3 py-2 text-xs font-bold text-slate-900 focus:border-[#064e3b] focus:bg-white focus:outline-none"
+                  required
+                />
+              </div>
+            </div>
+          </div>
+
           {errorMsg && (
             <div className="mt-3 rounded-xl bg-rose-50 border border-rose-300 p-2.5 text-xs font-semibold text-rose-800">
               {errorMsg}
@@ -493,10 +587,80 @@ export function StudentManagementSection({
               className="inline-flex items-center gap-1.5 rounded-xl bg-[#064e3b] px-5 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-[#085a44] transition-all disabled:opacity-50"
             >
               <UserPlus className="size-4" />
-              <span>{saving ? "Registering…" : "Register Student"}</span>
+              <span>{saving ? "Registering…" : "Register Student & Set Fees"}</span>
             </button>
           </div>
         </form>
+
+        {/* Post-Registration Prompt with Immediate Term Fee Collection */}
+        {justRegisteredStudent && (
+          <div className="mb-8 rounded-2xl border-2 border-emerald-500 bg-emerald-50/90 p-5 shadow-md">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-700 px-3 py-0.5 text-xs font-bold text-white mb-2">
+                  <Check className="size-3.5" /> Enrolled Successfully
+                </div>
+                <h4 className="text-lg font-bold font-serif text-[#064e3b]">
+                  {justRegisteredStudent.student_name}{" "}
+                  <span className="font-mono text-sm font-semibold text-emerald-800">
+                    ({justRegisteredStudent.hall_ticket_no})
+                  </span>
+                </h4>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  Class: <strong>{justRegisteredStudent.class}</strong> ({justRegisteredStudent.group_name}) · Section{" "}
+                  <strong>{justRegisteredStudent.section}</strong>
+                </p>
+                <div className="mt-2.5 flex flex-wrap gap-2 text-xs">
+                  <span className="rounded-lg bg-white px-2.5 py-1 border border-emerald-200 font-semibold text-slate-700">
+                    Term 1: <strong className="text-emerald-800">{formatINR(justRegisteredStudent.term1_fee || 12000)}</strong>
+                  </span>
+                  <span className="rounded-lg bg-white px-2.5 py-1 border border-emerald-200 font-semibold text-slate-700">
+                    Term 2: <strong className="text-emerald-800">{formatINR(justRegisteredStudent.term2_fee || 10000)}</strong>
+                  </span>
+                  <span className="rounded-lg bg-white px-2.5 py-1 border border-emerald-200 font-semibold text-slate-700">
+                    Term 3: <strong className="text-emerald-800">{formatINR(justRegisteredStudent.term3_fee || 8000)}</strong>
+                  </span>
+                  <span className="rounded-lg bg-emerald-200/80 px-2.5 py-1 font-extrabold text-[#064e3b]">
+                    Total Annual Fee: {formatINR(justRegisteredStudent.total_fee || 30000)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {onSelectStudentForPayment && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const ht = justRegisteredStudent.hall_ticket_no;
+                      onSelectStudentForPayment(ht);
+                    }}
+                    className="inline-flex items-center gap-2 rounded-xl bg-amber-400 px-5 py-2.5 text-xs font-bold text-slate-900 hover:bg-amber-500 shadow-sm transition-all"
+                  >
+                    <span>Proceed to Collect Term 1 Fee (₹{justRegisteredStudent.term1_fee || 12000}) →</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const summary = getStudentFeeSummary(justRegisteredStudent);
+                    setSelectedStudentForDue(summary);
+                  }}
+                  className="rounded-xl border border-emerald-700 bg-white px-3.5 py-2.5 text-xs font-bold text-[#064e3b] hover:bg-emerald-100"
+                >
+                  View Due Ledger
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setJustRegisteredStudent(null)}
+                  className="rounded-xl border border-slate-300 p-2 text-slate-500 hover:bg-slate-100"
+                  title="Dismiss banner"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Search & Filters */}
         <div className="grid gap-3 sm:grid-cols-4 mb-6">

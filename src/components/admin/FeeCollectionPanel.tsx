@@ -67,6 +67,24 @@ export function FeeCollectionPanel({
   } | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
 
+  // Term Breakdown & Adjustment State
+  const [termDetails, setTermDetails] = useState({
+    t1Alloc: 12000,
+    t1Paid: 0,
+    t1Due: 12000,
+    t2Alloc: 10000,
+    t2Paid: 0,
+    t2Due: 10000,
+    t3Alloc: 8000,
+    t3Paid: 0,
+    t3Due: 8000,
+  });
+  const [showTermAdjustModal, setShowTermAdjustModal] = useState(false);
+  const [editTerm1, setEditTerm1] = useState(12000);
+  const [editTerm2, setEditTerm2] = useState(10000);
+  const [editTerm3, setEditTerm3] = useState(8000);
+  const [savingTerms, setSavingTerms] = useState(false);
+
   const fetchData = useCallback(async () => {
     setLoading(true);
 
@@ -151,8 +169,15 @@ export function FeeCollectionPanel({
             term3_fee: 8000,
           };
 
-        const totalClassFee = struct.total_fee || 30000;
+        const t1Alloc = match.term1_fee !== undefined ? match.term1_fee : struct.term1_fee;
+        const t2Alloc = match.term2_fee !== undefined ? match.term2_fee : struct.term2_fee;
+        const t3Alloc = match.term3_fee !== undefined ? match.term3_fee : struct.term3_fee;
+        const totalClassFee = match.total_fee !== undefined ? match.total_fee : (t1Alloc + t2Alloc + t3Alloc);
+
         setStudentTotalFee(totalClassFee);
+        setEditTerm1(t1Alloc);
+        setEditTerm2(t2Alloc);
+        setEditTerm3(t3Alloc);
 
         // Find existing payments for this student
         const prevPayments = fees.filter(
@@ -167,31 +192,51 @@ export function FeeCollectionPanel({
         const due = Math.max(0, totalClassFee - paid);
         setStudentRemainingDue(due);
 
-        // Determine default suggested term and amount
+        // Term Breakdown
         const t1Paid = prevPayments
-          .filter((p) => (p.term || "").includes("1"))
+          .filter((p) => (p.term || "").toLowerCase().includes("1"))
           .reduce((sum, p) => sum + p.fee_amount, 0);
         const t2Paid = prevPayments
-          .filter((p) => (p.term || "").includes("2"))
+          .filter((p) => (p.term || "").toLowerCase().includes("2"))
+          .reduce((sum, p) => sum + p.fee_amount, 0);
+        const t3Paid = prevPayments
+          .filter((p) => (p.term || "").toLowerCase().includes("3"))
           .reduce((sum, p) => sum + p.fee_amount, 0);
 
-        if (t1Paid < struct.term1_fee) {
+        const t1Due = Math.max(0, t1Alloc - t1Paid);
+        const t2Due = Math.max(0, t2Alloc - t2Paid);
+        const t3Due = Math.max(0, t3Alloc - t3Paid);
+
+        setTermDetails({
+          t1Alloc,
+          t1Paid,
+          t1Due,
+          t2Alloc,
+          t2Paid,
+          t2Due,
+          t3Alloc,
+          t3Paid,
+          t3Due,
+        });
+
+        // Determine default suggested term and amount
+        if (t1Due > 0) {
           setForm((prev) => ({
             ...prev,
             term: "Term 1",
-            fee_amount: String(struct.term1_fee - t1Paid),
+            fee_amount: String(t1Due),
           }));
-        } else if (t2Paid < struct.term2_fee) {
+        } else if (t2Due > 0) {
           setForm((prev) => ({
             ...prev,
             term: "Term 2",
-            fee_amount: String(struct.term2_fee - t2Paid),
+            fee_amount: String(t2Due),
           }));
         } else {
           setForm((prev) => ({
             ...prev,
             term: "Term 3",
-            fee_amount: String(Math.min(due, struct.term3_fee)),
+            fee_amount: String(t3Due > 0 ? t3Due : t3Alloc),
           }));
         }
       } else {
@@ -207,6 +252,69 @@ export function FeeCollectionPanel({
     },
     [students, structures, fees]
   );
+
+  const handleSaveAdjustedTerms = async () => {
+    if (!matchedStudent) return;
+    setSavingTerms(true);
+    const updatedTotal = editTerm1 + editTerm2 + editTerm3;
+    const updatedStudent: StudentRecord = {
+      ...matchedStudent,
+      term1_fee: editTerm1,
+      term2_fee: editTerm2,
+      term3_fee: editTerm3,
+      total_fee: updatedTotal,
+    };
+
+    try {
+      await supabase
+        .from("students")
+        .update({
+          // Supabase update
+        })
+        .eq("hall_ticket_no", matchedStudent.hall_ticket_no);
+    } catch (e) {}
+
+    try {
+      if (typeof window !== "undefined") {
+        const stored = localStorage.getItem("sses_students_cache");
+        if (stored) {
+          const arr: StudentRecord[] = JSON.parse(stored);
+          const idx = arr.findIndex((s) => s.hall_ticket_no === matchedStudent.hall_ticket_no);
+          if (idx !== -1) arr[idx] = updatedStudent;
+          else arr.push(updatedStudent);
+          localStorage.setItem("sses_students_cache", JSON.stringify(arr));
+        }
+      }
+    } catch (e) {}
+
+    setStudents((prev) =>
+      prev.map((s) => (s.hall_ticket_no === matchedStudent.hall_ticket_no ? updatedStudent : s))
+    );
+    setMatchedStudent(updatedStudent);
+
+    const t1Due = Math.max(0, editTerm1 - termDetails.t1Paid);
+    const t2Due = Math.max(0, editTerm2 - termDetails.t2Paid);
+    const t3Due = Math.max(0, editTerm3 - termDetails.t3Paid);
+
+    setStudentTotalFee(updatedTotal);
+    setStudentRemainingDue(Math.max(0, updatedTotal - studentTotalPaid));
+    setTermDetails((prev) => ({
+      ...prev,
+      t1Alloc: editTerm1,
+      t1Due,
+      t2Alloc: editTerm2,
+      t2Due,
+      t3Alloc: editTerm3,
+      t3Due,
+    }));
+
+    if (form.term === "Term 1") setForm((prev) => ({ ...prev, fee_amount: String(t1Due) }));
+    if (form.term === "Term 2") setForm((prev) => ({ ...prev, fee_amount: String(t2Due) }));
+    if (form.term === "Term 3") setForm((prev) => ({ ...prev, fee_amount: String(t3Due) }));
+
+    setSavingTerms(false);
+    setShowTermAdjustModal(false);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -429,13 +537,24 @@ export function FeeCollectionPanel({
                     ({matchedStudent.class} · Sec {matchedStudent.section})
                   </span>
                 </div>
-                <div className="text-xs font-semibold text-slate-600">
-                  Total Payments Made: <strong className="text-emerald-700">{studentPaymentHistory.length} times</strong>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-slate-600">
+                    Paid: <strong className="text-emerald-700">{studentPaymentHistory.length} times</strong>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowTermAdjustModal(true)}
+                    className="inline-flex items-center gap-1 rounded-lg border border-[#064e3b] bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-[#064e3b] hover:bg-emerald-100 transition-colors"
+                    title="Customize Term 1, 2, 3 fees for this student"
+                  >
+                    <Pencil className="size-3" />
+                    <span>Adjust / Add Term Fees</span>
+                  </button>
                 </div>
               </div>
 
-              {/* 3 Terms Status Cards */}
-              <div className="grid grid-cols-4 gap-3 text-center">
+              {/* 4 Summary Cards */}
+              <div className="grid grid-cols-4 gap-3 text-center mb-3">
                 <div className="rounded-lg bg-[#faf8f5] p-2.5 border border-[#e5e0d4]">
                   <div className="text-[10px] uppercase font-bold text-slate-500">Total Annual Fee</div>
                   <div className="text-sm font-extrabold text-slate-900 mt-0.5">{formatINR(studentTotalFee)}</div>
@@ -449,8 +568,135 @@ export function FeeCollectionPanel({
                   <div className="text-sm font-extrabold text-rose-800 mt-0.5">{formatINR(studentRemainingDue)}</div>
                 </div>
                 <div className="rounded-lg bg-amber-50 p-2.5 border border-amber-200">
-                  <div className="text-[10px] uppercase font-bold text-amber-800">Selected Term</div>
+                  <div className="text-[10px] uppercase font-bold text-amber-800">Active Term</div>
                   <div className="text-sm font-extrabold text-amber-900 mt-0.5">{form.term}</div>
+                </div>
+              </div>
+
+              {/* Clickable 3-Term Installment Cards */}
+              <div className="border-t border-[#f0ede6] pt-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#064e3b]">
+                    Select Term Installment to Collect
+                  </span>
+                  <span className="text-[10px] text-slate-500">
+                    Click any term card to auto-fill term & due amount
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-2.5">
+                  {/* Term 1 Card */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForm((prev) => ({
+                        ...prev,
+                        term: "Term 1",
+                        fee_amount: String(termDetails.t1Due > 0 ? termDetails.t1Due : termDetails.t1Alloc),
+                      }));
+                    }}
+                    className={`p-3 rounded-xl border text-left transition-all ${
+                      form.term === "Term 1"
+                        ? "border-[#064e3b] bg-emerald-50/80 ring-2 ring-[#064e3b]"
+                        : "border-[#e5e0d4] bg-[#faf8f5] hover:bg-white"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-900">Term 1</span>
+                      <span
+                        className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                          termDetails.t1Due === 0
+                            ? "bg-emerald-100 text-emerald-800"
+                            : "bg-amber-100 text-amber-900"
+                        }`}
+                      >
+                        {termDetails.t1Due === 0 ? "Paid" : `Due ${formatINR(termDetails.t1Due)}`}
+                      </span>
+                    </div>
+                    <div className="mt-1 text-[11px] text-slate-600 flex justify-between">
+                      <span>Allocated:</span>
+                      <strong>{formatINR(termDetails.t1Alloc)}</strong>
+                    </div>
+                    <div className="text-[11px] text-emerald-700 flex justify-between">
+                      <span>Paid:</span>
+                      <strong>{formatINR(termDetails.t1Paid)}</strong>
+                    </div>
+                  </button>
+
+                  {/* Term 2 Card */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForm((prev) => ({
+                        ...prev,
+                        term: "Term 2",
+                        fee_amount: String(termDetails.t2Due > 0 ? termDetails.t2Due : termDetails.t2Alloc),
+                      }));
+                    }}
+                    className={`p-3 rounded-xl border text-left transition-all ${
+                      form.term === "Term 2"
+                        ? "border-[#064e3b] bg-emerald-50/80 ring-2 ring-[#064e3b]"
+                        : "border-[#e5e0d4] bg-[#faf8f5] hover:bg-white"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-900">Term 2</span>
+                      <span
+                        className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                          termDetails.t2Due === 0
+                            ? "bg-emerald-100 text-emerald-800"
+                            : "bg-amber-100 text-amber-900"
+                        }`}
+                      >
+                        {termDetails.t2Due === 0 ? "Paid" : `Due ${formatINR(termDetails.t2Due)}`}
+                      </span>
+                    </div>
+                    <div className="mt-1 text-[11px] text-slate-600 flex justify-between">
+                      <span>Allocated:</span>
+                      <strong>{formatINR(termDetails.t2Alloc)}</strong>
+                    </div>
+                    <div className="text-[11px] text-emerald-700 flex justify-between">
+                      <span>Paid:</span>
+                      <strong>{formatINR(termDetails.t2Paid)}</strong>
+                    </div>
+                  </button>
+
+                  {/* Term 3 Card */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForm((prev) => ({
+                        ...prev,
+                        term: "Term 3",
+                        fee_amount: String(termDetails.t3Due > 0 ? termDetails.t3Due : termDetails.t3Alloc),
+                      }));
+                    }}
+                    className={`p-3 rounded-xl border text-left transition-all ${
+                      form.term === "Term 3"
+                        ? "border-[#064e3b] bg-emerald-50/80 ring-2 ring-[#064e3b]"
+                        : "border-[#e5e0d4] bg-[#faf8f5] hover:bg-white"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-900">Term 3</span>
+                      <span
+                        className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                          termDetails.t3Due === 0
+                            ? "bg-emerald-100 text-emerald-800"
+                            : "bg-amber-100 text-amber-900"
+                        }`}
+                      >
+                        {termDetails.t3Due === 0 ? "Paid" : `Due ${formatINR(termDetails.t3Due)}`}
+                      </span>
+                    </div>
+                    <div className="mt-1 text-[11px] text-slate-600 flex justify-between">
+                      <span>Allocated:</span>
+                      <strong>{formatINR(termDetails.t3Alloc)}</strong>
+                    </div>
+                    <div className="text-[11px] text-emerald-700 flex justify-between">
+                      <span>Paid:</span>
+                      <strong>{formatINR(termDetails.t3Paid)}</strong>
+                    </div>
+                  </button>
                 </div>
               </div>
             </div>
@@ -666,6 +912,95 @@ export function FeeCollectionPanel({
           onRefreshTotals();
         }}
       />
+
+      {/* Adjust Term Fees Modal */}
+      {showTermAdjustModal && matchedStudent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-3xl border border-[#e5e0d4] bg-white p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[#f0ede6] pb-3 mb-4">
+              <div>
+                <h3 className="text-base font-bold text-[#064e3b]">
+                  Adjust Student Term Fees
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {matchedStudent.student_name} ({matchedStudent.hall_ticket_no})
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTermAdjustModal(false)}
+                className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Term 1 Fee (₹)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={editTerm1}
+                  onChange={(e) => setEditTerm1(Number(e.target.value) || 0)}
+                  className="w-full rounded-xl border border-[#d8d2c4] bg-[#faf8f5] px-3 py-2 text-xs font-bold text-slate-900 focus:border-[#064e3b] focus:bg-white focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Term 2 Fee (₹)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={editTerm2}
+                  onChange={(e) => setEditTerm2(Number(e.target.value) || 0)}
+                  className="w-full rounded-xl border border-[#d8d2c4] bg-[#faf8f5] px-3 py-2 text-xs font-bold text-slate-900 focus:border-[#064e3b] focus:bg-white focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Term 3 Fee (₹)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={editTerm3}
+                  onChange={(e) => setEditTerm3(Number(e.target.value) || 0)}
+                  className="w-full rounded-xl border border-[#d8d2c4] bg-[#faf8f5] px-3 py-2 text-xs font-bold text-slate-900 focus:border-[#064e3b] focus:bg-white focus:outline-none"
+                />
+              </div>
+
+              <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-3 text-xs font-bold text-[#064e3b] flex justify-between">
+                <span>Total Adjusted Fee:</span>
+                <span>{formatINR(editTerm1 + editTerm2 + editTerm3)}</span>
+              </div>
+            </div>
+
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowTermAdjustModal(false)}
+                className="rounded-xl border border-[#d8d2c4] px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveAdjustedTerms}
+                disabled={savingTerms}
+                className="rounded-xl bg-[#064e3b] px-4 py-2 text-xs font-bold text-white hover:bg-[#085a44] shadow-sm disabled:opacity-50"
+              >
+                {savingTerms ? "Saving…" : "Save Term Fees"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

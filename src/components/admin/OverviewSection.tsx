@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { formatINR } from "./constants";
-import { AdminMainTab } from "./AdminHeader";
+import { AdminActiveTab } from "./AdminSidebar";
 import {
   Briefcase,
   Users,
@@ -20,7 +20,7 @@ export function OverviewSection({
 }: {
   totals: { fees: number; expenses: number; salaries: number };
   loadingTotals: boolean;
-  onNavigate: (tab: AdminMainTab) => void;
+  onNavigate: (tab: AdminActiveTab) => void;
 }) {
   const [enquiryCount, setEnquiryCount] = useState<number | null>(null);
   const [studentCount, setStudentCount] = useState<number>(0);
@@ -115,7 +115,7 @@ export function OverviewSection({
           <div className="flex flex-wrap items-center gap-3">
             <button
               type="button"
-              onClick={() => onNavigate("revenue")}
+              onClick={() => onNavigate("fees")}
               className="flex items-center gap-2 rounded-2xl px-5 py-3.5 text-xs font-bold text-white shadow-md transition-all hover:brightness-110 active:scale-95 bg-[#064e3b] hover:bg-[#085a44]"
             >
               <Briefcase className="size-4" />
@@ -139,7 +139,7 @@ export function OverviewSection({
         {/* Module 1: Revenue Management */}
         <div
           className="rounded-3xl border border-[#e5e0d4] bg-white p-7 transition-all hover:border-[#064e3b] hover:shadow-md cursor-pointer group shadow-sm flex flex-col justify-between"
-          onClick={() => onNavigate("revenue")}
+          onClick={() => onNavigate("fees")}
         >
           <div>
             <div className="flex items-start justify-between">

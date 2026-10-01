@@ -10,6 +10,10 @@ export interface StudentRecord {
   parent_name?: string;
   admission_date: string;
   academic_year: string;
+  term1_fee?: number;
+  term2_fee?: number;
+  term3_fee?: number;
+  total_fee?: number;
   created_at?: string;
 }
 
