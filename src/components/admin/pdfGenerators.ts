@@ -1040,3 +1040,116 @@ export function downloadAdmissionEnquiriesCSV(enquiries: AdmissionEnquiryRecord[
   link.click();
   document.body.removeChild(link);
 }
+
+export function downloadUserManualPDF() {
+  const printWindow = window.open("", "_blank");
+  if (!printWindow) {
+    alert("Please allow popups to download or print the PDF manual.");
+    return;
+  }
+
+  const generatedDate = new Date().toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+
+  const html = `
+    <!DOCTYPE html>
+    <html lang="en">
+      <head>
+        <meta charset="utf-8" />
+        <title>Administrator User Manual - Satya Sai Educational Society</title>
+        <style>
+          @page { size: A4; margin: 15mm 15mm; }
+          body { font-family: 'Segoe UI', Arial, sans-serif; color: #0f172a; margin: 0; padding: 20px; font-size: 13px; line-height: 1.6; background: #fff; }
+          .header { text-align: center; border-bottom: 3px double #064e3b; padding-bottom: 12px; margin-bottom: 24px; }
+          .society-name { font-size: 24px; font-weight: 800; color: #064e3b; margin: 0; text-transform: uppercase; letter-spacing: 0.5px; }
+          .society-sub { font-size: 12px; color: #64748b; margin: 4px 0 0; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
+          .statement-title { font-size: 18px; font-weight: 700; color: #d97706; margin-top: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+          h2 { color: #064e3b; border-bottom: 1.5px solid #064e3b; padding-bottom: 4px; font-size: 16px; margin-top: 24px; text-transform: uppercase; }
+          h3 { color: #0f172a; font-size: 14px; margin-top: 16px; margin-bottom: 8px; }
+          p { margin: 8px 0; }
+          ul { margin-top: 8px; margin-bottom: 16px; padding-left: 20px; }
+          li { margin-bottom: 6px; }
+          .highlight { font-weight: 600; color: #92400e; background: #fef3c7; padding: 1px 4px; border-radius: 3px; }
+          .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 11px; color: #64748b; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1 class="society-name">Satya Sai Educational Society</h1>
+          <p class="society-sub">Plakonda · Vizianagaram Dist. · Andhra Pradesh</p>
+          <div class="statement-title">Administrator Portal User Manual</div>
+        </div>
+
+        <p><strong>Generated On:</strong> \${generatedDate}</p>
+
+        <h2>1. Getting Started</h2>
+        <p>The Administrative Portal is a secure suite for managing the institution's operations, including student admissions, fee structures, daily fee collections, operational expenses, and staff salaries. It also acts as an automated ledger to track available balances and surplus/deficit accounts.</p>
+        <p><strong>Login:</strong> Access the portal via <span class="highlight">/admin</span> and use your secure administrator credentials. The portal will maintain an active, secure session until you log out.</p>
+
+        <h2>2. Student Registry & Admissions</h2>
+        <h3>Adding a New Student:</h3>
+        <ul>
+          <li>Navigate to <strong>Student Registry & Dues</strong>.</li>
+          <li>Fill in the mandatory details including Hall Ticket / Roll Number, Name, Class, Group, and Section.</li>
+          <li>The 3-term fee structure (Term 1, Term 2, Term 3) will auto-populate based on the selected class. You can manually adjust these if a special concession applies.</li>
+          <li>Once registered, the student is immediately added to the ledger, and you can proceed directly to fee collection.</li>
+        </ul>
+        <h3>Managing Enquiries:</h3>
+        <ul>
+          <li>Prospective student inquiries submitted on the public website automatically appear in the <strong>Admissions Live Desk</strong>.</li>
+          <li>You can follow up with these leads using the integrated Tele-Counselling and WhatsApp links.</li>
+        </ul>
+
+        <h2>3. Revenue Management (Fee Collection)</h2>
+        <p>The system intelligently tracks remaining dues for every student.</p>
+        <ul>
+          <li>Go to the <strong>Revenue & Payroll Management</strong> panel, then <strong>Fee Collection</strong>.</li>
+          <li><strong>Select a Student:</strong> Choose a student to see their exact outstanding dues across Term 1, Term 2, and Term 3.</li>
+          <li><strong>Auto-Fill Installments:</strong> Click on any term (e.g., Term 1) to automatically populate the exact remaining due for that specific term in the payment form.</li>
+          <li><strong>Adjustment:</strong> Administrators can also use the <em>Adjust Term Fees</em> modal to modify a student's total term fee allocations after enrollment.</li>
+          <li><strong>Receipt Generation:</strong> Once a payment is recorded, you can instantly download a professional, printable student fee receipt.</li>
+        </ul>
+
+        <h2>4. Operational Expenses & Salaries</h2>
+        <h3>Expenses:</h3>
+        <ul>
+          <li>Log day-to-day expenditures under <strong>Expenses Register</strong>.</li>
+          <li>Categorize them (e.g., Infrastructure, Events, Miscellaneous) for clear monthly auditing.</li>
+        </ul>
+        <h3>Staff Salaries:</h3>
+        <ul>
+          <li>Manage faculty and non-teaching staff payroll in the <strong>Salaries Disbursed</strong> section.</li>
+          <li>Each salary payout is linked to a specific month.</li>
+          <li>Optionally, email a salary slip directly to the staff member upon recording the payment.</li>
+        </ul>
+
+        <h2>5. Financial Reporting & Auditing</h2>
+        <p>The portal generates professional, industry-standard PDF statements.</p>
+        <ul>
+          <li><strong>Class-Wise Fee Reports:</strong> Filter by any specific class and month/year to download a precise register of all fee transactions for that stream.</li>
+          <li><strong>Monthly Financial Audit:</strong> Download a comprehensive monthly ledger that reconciles total fee collections, expenses, and salaries to calculate the net available surplus/deficit balance for the society reserve.</li>
+          <li><strong>Expense & Salary Ledgers:</strong> Generate isolated PDF reports for just expenditures or salary payouts in a given month.</li>
+        </ul>
+
+        <div class="footer">
+          <div>This manual is electronically generated for authorized administrators of Satya Sai Educational Society.</div>
+          <div style="margin-top: 4px;">For technical support, refer to your deployment administrator.</div>
+        </div>
+
+        <script>
+          window.onload = function() {
+            window.focus();
+            window.print();
+          };
+        </script>
+      </body>
+    </html>
+  `;
+
+  printWindow.document.open();
+  printWindow.document.write(html);
+  printWindow.document.close();
+}
